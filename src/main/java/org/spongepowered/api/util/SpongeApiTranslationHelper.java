@@ -22,4 +22,43 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
-@org.spongepowered.api.util.annotation.NonnullByDefault package org.spongepowered.api.text.translation.locale;
+package org.spongepowered.api.util;
+
+import com.google.common.base.Function;
+import org.spongepowered.api.text.Text;
+import org.spongepowered.api.text.Texts;
+import org.spongepowered.api.text.translation.ResourceBundleTranslation;
+
+import java.util.Locale;
+import java.util.ResourceBundle;
+
+import javax.annotation.Nullable;
+
+/**
+ * This class provides translations for strings within SpongeAPI. Plugins should consult an implementaion of Translation for help.
+ */
+public class SpongeApiTranslationHelper {
+
+    private static final Function<Locale, ResourceBundle> LOOKUP_FUNC = new Function<Locale, ResourceBundle>() {
+        @Nullable
+        @Override
+        public ResourceBundle apply(Locale input) {
+            return ResourceBundle.getBundle("org.spongepowered.api.Translations", input);
+        }
+    };
+
+    private SpongeApiTranslationHelper() {
+    } // Prevent instance creation
+
+    /**
+     * Get the translated text for a given string.
+     *
+     * @param key The translation key
+     * @param args Translation parameters
+     * @return The translatable text
+     */
+    public static Text t(String key, Object... args) {
+        return Texts.of(new ResourceBundleTranslation(key, LOOKUP_FUNC), args);
+    }
+
+}

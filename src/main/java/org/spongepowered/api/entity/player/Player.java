@@ -31,7 +31,6 @@ import org.spongepowered.api.net.PlayerConnection;
 import org.spongepowered.api.resourcepack.ResourcePack;
 import org.spongepowered.api.scoreboard.Scoreboard;
 import org.spongepowered.api.text.Text;
-import org.spongepowered.api.text.translation.locale.Locales;
 import org.spongepowered.api.util.command.CommandSource;
 
 import java.util.Locale;
@@ -50,7 +49,6 @@ public interface Player extends Human, User, CommandSource, Viewer {
      * Gets the locale used by the player.
      *
      * @return The player's locale
-     * @see Locales
      */
     Locale getLocale();
 
@@ -87,7 +85,7 @@ public interface Player extends Human, User, CommandSource, Viewer {
      * @param reason The reason for the kick
      */
     void kick(Text.Literal reason);
-    
+
     /**
      * Gets the {@link Scoreboard} displayed to the player.
      *
