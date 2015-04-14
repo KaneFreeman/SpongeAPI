@@ -27,6 +27,7 @@ package org.spongepowered.api.util.command.args;
 import static org.spongepowered.api.util.command.args.TranslationPlaceholder.t;
 
 import com.google.common.base.Function;
+import com.google.common.base.Joiner;
 import com.google.common.base.Optional;
 import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
@@ -221,12 +222,14 @@ public class GenericArguments {
         public Text getUsage(CommandSource commander) {
             if (this.choicesInUsage) {
                 final TextBuilder build = Texts.builder();
+                build.append(CommandMessageFormatting.LT_TEXT);
                 for (Iterator<String> it = this.choices.keySet().iterator(); it.hasNext();) {
                     build.append(Texts.of(it.next()));
                     if (it.hasNext()) {
                         build.append(CommandMessageFormatting.PIPE_TEXT);
                     }
                 }
+                build.append(CommandMessageFormatting.GT_TEXT);
                 return build.build();
             } else {
                 return super.getUsage(commander);
@@ -256,21 +259,19 @@ public class GenericArguments {
 
         @Override
         public void parse(CommandSource source, CommandArgs args, CommandContext context) throws ArgumentParseException {
-            ArgumentParseException firstException = null;
+            ArgumentParseException lastException = null;
             for (CommandElement element : this.elements) {
                 Object startState = args.getState();
                 try {
                     element.parse(source, args, context);
                     return;
                 } catch (ArgumentParseException ex) {
-                    if (firstException == null) {
-                        firstException = ex;
-                    }
+                    lastException = ex;
                     args.setState(startState);
                 }
             }
-            if (firstException != null) {
-                throw firstException;
+            if (lastException != null) {
+                throw lastException;
             }
         }
 
@@ -391,7 +392,7 @@ public class GenericArguments {
                 if (this.considerInvalidFormatEmpty || args.hasNext()) { // If there are more args, suppress. Otherwise, throw the error
                     args.setState(startState);
                     if (this.element.getKey() != null && this.value != null) {
-                        context.putArg(Texts.toPlain(this.element.getKey()), this.value);
+                        context.putArg(this.element.getUntranslatedKey(), this.value);
                     }
                 } else {
                     throw ex;
@@ -539,7 +540,8 @@ public class GenericArguments {
     }
 
     /**
-     * Require an argument to be a string. Any provided argument will fit in under this argument
+     * Require an argument to be a string. Any provided argument will fit in under this argument.
+     * Gives values of type {@link String}.
      *
      * @param key The key to store the parsed argument under
      * @return the element to match the input
@@ -563,6 +565,7 @@ public class GenericArguments {
 
     /**
      * Require an argument to be an integer (base 10).
+     * Gives values of type {@link Integer}
      *
      * @param key The key to store the parsed argument under
      * @return the element to match the input
@@ -619,6 +622,7 @@ public class GenericArguments {
      *     <li>n</li>
      *     <li>notatall</li>
      * </ul>
+     * Gives values of type {@link Boolean}
      *
      * @param key The key to store the parsed argument under
      * @return the element to match the input
@@ -629,6 +633,7 @@ public class GenericArguments {
 
     /**
      * Require the argument to be a key under the provided enum.
+     * Gives values of type {@link T}
      *
      * @param key The key to store the matched enum value under
      * @param type The enum class to get enum constants from
@@ -677,6 +682,7 @@ public class GenericArguments {
 
     /**
      * Require one or more strings, which are combined into a single, space-separated string.
+     * Gives values of type {@link String}
      *
      * @param key The key to store the parsed argument under
      * @return the element to match the input
@@ -713,7 +719,80 @@ public class GenericArguments {
 
         @Override
         public Text getUsage(CommandSource src) {
-            return Texts.of(super.getUsage(src), "...");
+            return Texts.of(CommandMessageFormatting.LT_TEXT, getKey(), CommandMessageFormatting.ELIPSES_TEXT, CommandMessageFormatting.GT_TEXT);
+        }
+    }
+
+    /**
+     * Expect a literal sequence of arguments. This element matches the input against a predefined array of arguments expected to be present,
+     * case-insensitively.
+     *
+     * @param key The key to add to the context. Will be set to a value of true if this element matches
+     * @param expectedArgs The sequence of arguments expected
+     * @return the appropriate command element
+     */
+    public static CommandElement literal(Text key, String... expectedArgs) {
+        return new LiteralCommandElement(key, ImmutableList.copyOf(expectedArgs), true);
+    }
+
+    /**
+     * Expect a literal sequence of arguments. This element matches the input against a predefined array of arguments expected to be present,
+     * case-insensitively.
+     *
+     * @param key The key to store this argument as
+     * @param putValue The value to put at key if this argument matches. May be null
+     * @param expectedArgs The sequence of arguments expected
+     * @return the appropriate command element
+     */
+    public static CommandElement literal(Text key, @Nullable Object putValue, String... expectedArgs) {
+        return new LiteralCommandElement(key, ImmutableList.copyOf(expectedArgs), putValue);
+    }
+
+    private static class LiteralCommandElement extends CommandElement {
+        private final List<String> expectedArgs;
+        @Nullable
+        private final Object putValue;
+
+        protected LiteralCommandElement(@Nullable Text key, List<String> expectedArgs, @Nullable Object putValue) {
+            super(key);
+            this.expectedArgs = ImmutableList.copyOf(expectedArgs);
+            this.putValue = putValue;
+        }
+
+        @Nullable
+        @Override
+        protected Object parseValue(CommandSource source, CommandArgs args) throws ArgumentParseException {
+            for (String arg : this.expectedArgs) {
+                String current;
+                if (!(current = args.next()).equalsIgnoreCase(arg)) {
+                    throw args.createError(t("Argument %s did not match expected next argument %s", current, arg));
+                }
+            }
+            return this.putValue;
+        }
+
+        @Override
+        public List<String> complete(CommandSource src, CommandArgs args, CommandContext context) {
+            for (String arg : this.expectedArgs) {
+                final Optional<String> next = args.nextIfPresent();
+                if (!next.isPresent()) {
+                    break;
+                } else if (args.hasNext()) {
+                    if (!next.get().equalsIgnoreCase(arg)) {
+                        break;
+                    }
+                } else {
+                    if (arg.toLowerCase().startsWith(next.get().toLowerCase())) { // Case-insensitive compare
+                        return ImmutableList.of(arg); // TODO: Possibly complete all remaining args? Does that even work
+                    }
+                }
+            }
+            return ImmutableList.of();
+        }
+
+        @Override
+        public Text getUsage(CommandSource src) {
+            return Texts.of(Joiner.on(' ').join(this.expectedArgs));
         }
     }
 }

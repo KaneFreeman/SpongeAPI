@@ -111,6 +111,6 @@ public abstract class CommandElement {
      * @return The formatted usage
      */
     public Text getUsage(CommandSource src) {
-        return getKey() == null ? Texts.of() : getKey();
+        return getKey() == null ? Texts.of() : Texts.of("<", getKey(), ">");
     }
 }
